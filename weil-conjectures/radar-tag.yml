@@ -1,0 +1,42 @@
+# To be added to weil-conjectures as .github/workflows/radar-tag.yml.
+#
+# radar benchmarks one commit per `radar/*` tag (see ../README.md). master moves several
+# hundred times a day and a clean build takes the better part of an hour, so this samples
+# master every six hours instead -- and only when it moved, so a quiet day costs nothing.
+#
+# Tags pushed with GITHUB_TOKEN do not trigger other workflows, so this never starts CI.
+
+name: radar tag
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radar-tag
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: tag master if it moved since the last radar tag
+        run: |
+          head=$(git rev-parse HEAD)
+          last=$(git ls-remote --tags --refs --sort=-v:refname origin 'refs/tags/radar/*' | head -1 | cut -f1)
+          if [ "$head" = "$last" ]; then
+            echo "master is still at the last radar tag ($head); nothing to do"
+            exit 0
+          fi
+          tag="radar/$(date -u +%Y-%m-%d-%H%M)"
+          git tag "$tag" "$head"
+          git push origin "refs/tags/$tag"
+          echo "tagged $head as $tag"
