@@ -26,14 +26,25 @@ ln -s "$RADAR_CACHE/packages" .lake/packages
 echo "::group::dependencies (not measured)"
 lake exe cache get
 
-# Every module imported from outside the project, built now so that the measured build
-# below compiles nothing but weil-conjectures. Lake accepts module names as targets.
-mapfile -t external < <(
-  grep -rhoE '^(public |meta |private )*import (all )?[A-Za-z0-9_.«»]+' WeilConjectures WeilConjectures.lean Comparator 2>/dev/null \
+# Every module imported from a dependency, built now so that the measured build below
+# compiles nothing but weil-conjectures. Lake accepts module names as targets.
+#
+# The grep is a cheap overapproximation: doc comments contain prose lines that begin with
+# "import", and core modules (Lean.*, Std.*) come with the toolchain and are no Lake target.
+# So a candidate is kept only if some dependency package has its source file. One that is
+# missed is not an error -- it is merely built, and timed, in the measured build instead.
+external=()
+while IFS= read -r module; do
+  if compgen -G ".lake/packages/*/${module//.//}.lean" > /dev/null; then
+    external+=("$module")
+  fi
+done < <(
+  grep -rhoE '^(public |meta |private )*import (all )?[A-Za-z0-9_.]+' WeilConjectures WeilConjectures.lean Comparator 2>/dev/null \
     | awk '{print $NF}' \
     | grep -vE '^(WeilConjectures|Weil)(\.|$)' \
     | sort -u
 )
+echo "pre-building ${#external[@]} imported dependency modules"
 if [ "${#external[@]}" -gt 0 ]; then
   lake build "${external[@]}"
 fi
