@@ -65,11 +65,15 @@ done
 rm -rf .lake/build
 : > "$RADAR_OUT"
 
+# A safety net, not an expectation: the first full build on the runner (2026-11-07) took
+# close to three hours, mostly in a long tail of large modules that cannot run in
+# parallel. Six hours matches the tag cadence, so a run is never killed merely for being
+# slow, and a hung one still frees the runner before the next tag arrives.
 LAKE_OVERRIDE_LEAN=true \
   LEAN="$FAKE_ROOT/bin/lean" \
   WRAPPER_OUT="$RADAR_OUT" \
   WRAPPER_PREFIX="$FAKE_ROOT" \
-  timeout -s KILL 3h \
+  timeout -s KILL 6h \
   "$BENCH_DIR/measure.py" -t build -d -a -o "$RADAR_OUT" -- lake build
 
 echo "$(wc -l < "$RADAR_OUT") measurements written"
